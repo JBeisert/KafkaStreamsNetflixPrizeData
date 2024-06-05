@@ -12,6 +12,9 @@ public class MovieInfo implements Serializable {
     private String Title;
     private String Year;
 
+    public MovieInfo() {
+    }
+
     public MovieInfo(String ID, String Title, String Year) {
         this.ID = ID;
         this.Title = Title;

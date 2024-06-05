@@ -7,8 +7,8 @@ import org.apache.kafka.common.serialization.Deserializer;
 import java.util.Map;
 
 public class GenericDeserializer<T> implements Deserializer<T> {
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private Class<T> tClass;
 
     public GenericDeserializer() {
@@ -22,21 +22,21 @@ public class GenericDeserializer<T> implements Deserializer<T> {
 
     @Override
     public T deserialize(String topic, byte[] bytes) {
-        if (bytes == null)
+        if (bytes == null) {
             return null;
+        }
 
         T data;
         try {
             data = objectMapper.readValue(bytes, tClass);
         } catch (Exception e) {
-            throw new SerializationException(e);
+            e.printStackTrace();
+            throw new SerializationException("Error deserializing message.", e);
         }
-
         return data;
     }
 
     @Override
     public void close() {
-
     }
 }

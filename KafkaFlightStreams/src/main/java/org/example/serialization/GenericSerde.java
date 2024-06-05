@@ -19,7 +19,12 @@ public class GenericSerde<T> implements Serde<T> {
         Map<String, Object> serdeProps = new HashMap<>();
         final Serializer<T> s = new GenericSerializer<T>();
         serdeProps.put("GenericDeserializerClass", tClass);
-        s.configure(serdeProps, false);
+        try {
+            s.configure(serdeProps, false);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("Error occurred while configuring serializer.", e);
+        }
         return s;
     }
 
@@ -28,7 +33,12 @@ public class GenericSerde<T> implements Serde<T> {
         Map<String, Object> serdeProps = new HashMap<>();
         final Deserializer<T> d = new GenericDeserializer<T>();
         serdeProps.put("GenericDeserializerClass", tClass);
-        d.configure(serdeProps, false);
+        try {
+            d.configure(serdeProps, false);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("Error occurred while configuring deserializer.", e);
+        }
         return d;
     }
 }

@@ -18,6 +18,9 @@ public class MovieRating implements Serializable {
     private String user_id;
     private String rate;
 
+    public MovieRating() {
+    }
+
     public MovieRating(String dateString, String film_id, String user_id, String rate) {
         this.dateString = dateString;
         this.film_id = film_id;

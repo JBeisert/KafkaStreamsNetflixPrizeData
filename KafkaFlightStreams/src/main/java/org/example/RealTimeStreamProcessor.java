@@ -97,28 +97,34 @@ public class RealTimeStreamProcessor {
             KStream<String, MovieRating> movieRating,
             String delay) {
 
-        KTable<Windowed<String>, MovieAggregate> movieAggregates = movieRating
-                .selectKey((key, value) -> MovieRating.parseOrderColumns(value.getDate()))
-                .groupByKey(Grouped.with(Serdes.String(), movieRatingSerde))
-                .windowedBy(TimeWindows.ofSizeWithNoGrace(Duration.ofDays(1)))
-                .aggregate(
-                        MovieAggregate::new,
-                        (key, value, aggregate) -> {
-                            aggregate.setRatingAmount(aggregate.getRatingAmount() + 1);
-                            aggregate.setRatingSum(aggregate.getRatingSum() + Integer.parseInt(value.getRate()));
+        KTable<Windowed<String>, MovieAggregate> movieAggregates = null;
+        try {
+            movieAggregates = movieRating
+                    .selectKey((key, value) -> MovieRating.parseOrderColumns(value.getDate()))
+                    .groupByKey(Grouped.with(Serdes.String(), movieRatingSerde))
+                    .windowedBy(TimeWindows.ofSizeWithNoGrace(Duration.ofDays(1)))
+                    .aggregate(
+                            MovieAggregate::new,
+                            (key, value, aggregate) -> {
+                                aggregate.setRatingAmount(aggregate.getRatingAmount() + 1);
+                                aggregate.setRatingSum(aggregate.getRatingSum() + Integer.parseInt(value.getRate()));
 
-//                            Set<String> updatedUniqueUsers = new HashSet<>(aggregate.getUniqueUsers());
-//                            updatedUniqueUsers.add(value.getUser_id());
-//                            aggregate.setUniqueUsers(updatedUniqueUsers);
+                                Set<String> updatedUniqueUsers = new HashSet<>(aggregate.getUniqueUsers());
+                                updatedUniqueUsers.add(value.getUser_id());
+                                aggregate.setUniqueUsers(updatedUniqueUsers);
 
-                            return aggregate;
-                        },
-                        Materialized.with(Serdes.String(), movieAggregateSerde)
-                );
+                                return aggregate;
+                            },
+                            Materialized.with(Serdes.String(), movieAggregateSerde)
+                    );
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("Error occurred while building ETL data.", e);
+        }
+
         if (delay.equals("C")) {
             return movieAggregates.suppress(Suppressed.untilWindowCloses(Suppressed.BufferConfig.unbounded()));
         }
-
         return movieAggregates;
     }
 

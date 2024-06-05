@@ -49,7 +49,7 @@ public class MovieAggregate {
         return "MovieAggregate{" +
                 "ratingAmount=" + ratingAmount +
                 ", ratingSum=" + ratingSum +
-                ", uniqueUsers=" + uniqueUsers +
+                ", uniqueUsers=" + uniqueUsers.size() +
                 '}';
     }
 
