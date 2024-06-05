@@ -46,15 +46,12 @@ public class RealTimeStreamProcessor {
 
         // MovieInfo
         KTable<String, MovieInfo> movieInfoTable = getMovieInfoTable(movieInfoSerde, movieInfoInputTopic, builder);
-        //movieInfoTable.toStream().foreach((key, value) -> System.out.println("movieInfoTable: " + key + ": " + value.toString()));
 
         // MovieRating
         KStream<String, MovieRating> movieRating = getMovieRating(movieRatingInputTopic, builder);
         KStream<String, MovieRating> movieRatingID = movieRating.selectKey((key, value) -> value.getFilm_id());
 
-        //movieRatingID.foreach((key, value) -> System.out.println("movieRatingID: " + key + ": " + value.toString()));
-
-        KStream<String, MovieRatingInfoJoined> joinedLines = movieRatingID
+        KStream<String, MovieRatingInfoJoined> joined = movieRatingID
                 .join(movieInfoTable, (MovieRating val1, MovieInfo val2) -> {
                             try {
                                 return new MovieRatingInfoJoined(val1.dateString, val1.film_id, val1.user_id, val1.rate, val2.getTitle());
@@ -67,44 +64,19 @@ public class RealTimeStreamProcessor {
                         }
                         , Joined.with(Serdes.String(), movieRatingSerde, movieInfoSerde));
 
-        joinedLines.foreach((key, value) -> System.out.println("joinedLines: " + key + ": " + value.toString()));
-
-//        KStream<String, NetflixView> joinedLines = netflixLines
-//                .map((key, value) -> KeyValue.pair(value.getFilm_id(), value))
-//                .join(movieTitles, (NetflixView val1, String val2) -> {
-////                .leftJoin(movieTitles, (NetflixView val1, String val2) -> {
-//                            try {
-//                                if (val2 == null) { // is it length problem?
-//                                    val2 = "";
-//                                }
-//                                val1.title = val2;
-//                                return val1;
-//                            } catch (Exception e) {
-//                                System.out.println("join error");
-//                                System.out.println(e.getMessage());
-//                                System.out.println(e.getClass());
-//                                return new NetflixView();
-//                            }
-//
-//                        }
-//                        , Joined.with(stringSerde, viewSerde, stringSerde)
+        //joined.foreach((key, value) -> System.out.println("joinedLines: " + key + ": " + value.toString()));
 
         // ETL
-        KTable<Windowed<String>, MovieAggregate> moviesETL = getETLData(movieRatingSerde, movieAggregateSerde, movieRating, delay);
+        KTable<Windowed<String>, MovieAggregate> moviesETL = getETLData(movieRatingInfoJoinedSerde, movieAggregateSerde, joined, delay);
 
 
 //        moviesETL.toStream()
 //                .selectKey((windowedKey, value) -> windowedKey.key())
 //                .to(ELTOutputTopic);
 
-//        moviesETL.toStream()
-//                .selectKey((windowedKey, value) -> windowedKey.key())
-//                .foreach((key, value) -> System.out.println("SYSTEMOUT: " + key + ": " + value.toString()));
-
-//        moviesETL.toStream()
-//                .selectKey((windowedKey, value) -> windowedKey.key())
-//                .foreach((key, value) -> System.out.println("SYSTEMOUT: " + key + ": " + value.toString()));
-
+        moviesETL.toStream()
+                .selectKey((windowedKey, value) -> windowedKey.key())
+                .foreach((key, value) -> System.out.println("SYSTEMOUT: " + key + ": " + value.toString()));
 
 
         final Topology topology = builder.build();
@@ -134,20 +106,21 @@ public class RealTimeStreamProcessor {
     }
 
     private static KTable<Windowed<String>, MovieAggregate> getETLData(
-            Serde<MovieRating> movieRatingSerde,
+            Serde<MovieRatingInfoJoined> movieRatingInfoJoinedSerde,
             Serde<MovieAggregate> movieAggregateSerde,
-            KStream<String, MovieRating> movieRating,
+            KStream<String, MovieRatingInfoJoined> joined,
             String delay) {
 
         KTable<Windowed<String>, MovieAggregate> movieAggregates = null;
         try {
-            movieAggregates = movieRating
-                    .selectKey((key, value) -> MovieRating.parseOrderColumns(value.getDate()))
-                    .groupByKey(Grouped.with(Serdes.String(), movieRatingSerde))
+            movieAggregates = joined
+                    .groupByKey(Grouped.with(Serdes.String(), movieRatingInfoJoinedSerde))
                     .windowedBy(TimeWindows.ofSizeWithNoGrace(Duration.ofDays(1)))
                     .aggregate(
                             MovieAggregate::new,
                             (key, value, aggregate) -> {
+                                aggregate.setTitle(value.getTitle());
+
                                 aggregate.setRatingAmount(aggregate.getRatingAmount() + 1);
                                 aggregate.setRatingSum(aggregate.getRatingSum() + Integer.parseInt(value.getRate()));
 

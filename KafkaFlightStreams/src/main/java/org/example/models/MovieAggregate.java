@@ -4,6 +4,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class MovieAggregate {
+    private String Title;
     private Integer ratingAmount;
     private Integer ratingSum;
     private Set<String> uniqueUsers;
@@ -14,9 +15,11 @@ public class MovieAggregate {
         this.ratingSum = 0;
         this.uniqueUsers = new HashSet<>();
         this.uniqueUsersCount = 0;
+        this.Title = "";
     }
 
-    public MovieAggregate(Integer ratingAmount, Integer ratingSum, Set<String> uniqueUsers, Integer uniqueUsersCount) {
+    public MovieAggregate(String Title, Integer ratingAmount, Integer ratingSum, Set<String> uniqueUsers, Integer uniqueUsersCount) {
+        this.Title = Title;
         this.ratingAmount = ratingAmount;
         this.ratingSum = ratingSum;
         this.uniqueUsers = uniqueUsers;
@@ -55,10 +58,19 @@ public class MovieAggregate {
         this.uniqueUsersCount = uniqueUsersCount;
     }
 
+    public String getTitle() {
+        return Title;
+    }
+
+    public void setTitle(String Title) {
+        this.Title = Title;
+    }
+
     @Override
     public String toString() {
         return "MovieAggregate{" +
-                "ratingAmount=" + ratingAmount +
+                "Title=" + Title +
+                ", ratingAmount=" + ratingAmount +
                 ", ratingSum=" + ratingSum +
                 ", uniqueUsersCount=" + uniqueUsersCount +
                 '}';
