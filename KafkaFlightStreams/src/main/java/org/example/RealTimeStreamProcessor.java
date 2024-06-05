@@ -8,10 +8,7 @@ import org.example.models.*;
 import org.example.serialization.GenericSerde;
 
 import java.time.Duration;
-import java.util.Map;
-import java.io.FileReader;
 import java.util.*;
-import java.io.BufferedReader;
 import java.util.concurrent.CountDownLatch;
 
 public class RealTimeStreamProcessor {
@@ -37,6 +34,10 @@ public class RealTimeStreamProcessor {
         Serde<MovieInfo> movieInfoSerde = new GenericSerde<>(MovieInfo.class);
         Serde<MovieAggregate> movieAggregateSerde = new GenericSerde<>(MovieAggregate.class);
         Serde<MovieRatingInfoJoined> movieRatingInfoJoinedSerde = new GenericSerde<>(MovieRatingInfoJoined.class);
+
+        Serde<Anomaly> anomalySerde = new GenericSerde<>(Anomaly.class);
+        Serde<AnomalyTable> anomalyTableSerde = new GenericSerde<>(AnomalyTable.class);
+        Serde<AnomalyPeriod> AnomalyPeriodSerde = new GenericSerde<>(AnomalyPeriod.class);
 
         String movieRatingInputTopic = "netflix-ratings-input";
         String movieInfoInputTopic = "movie-info-input";
@@ -64,19 +65,28 @@ public class RealTimeStreamProcessor {
                         }
                         , Joined.with(Serdes.String(), movieRatingSerde, movieInfoSerde));
 
-        //joined.foreach((key, value) -> System.out.println("joinedLines: " + key + ": " + value.toString()));
+
+        // = ANOMALY =
+        KStream<Windowed<String>, Anomaly> anomalies = getAnomaly(movieRatingInfoJoinedSerde, anomalySerde, D, L, O, joined, delay);
+
+        KTable<String, AnomalyTable> anomalyTables = getAnomalyTables(anomalyTableSerde, AnomalyPeriodSerde, anomalies );
+
+        anomalyTables.toStream().foreach((key, value) -> System.out.println("SYSTEMOUT: " + key + ": " + value.toString()));
+
+//        anomalyRecords
+//                .toStream()
+//                .to(airportsOutputTopic);
 
         // ETL
         KTable<Windowed<String>, MovieAggregate> moviesETL = getETLData(movieRatingInfoJoinedSerde, movieAggregateSerde, joined, delay);
-
 
 //        moviesETL.toStream()
 //                .selectKey((windowedKey, value) -> windowedKey.key())
 //                .to(ELTOutputTopic);
 
-        moviesETL.toStream()
-                .selectKey((windowedKey, value) -> windowedKey.key())
-                .foreach((key, value) -> System.out.println("SYSTEMOUT: " + key + ": " + value.toString()));
+//        moviesETL.toStream()
+//                .selectKey((windowedKey, value) -> windowedKey.key())
+//                .foreach((key, value) -> System.out.println("SYSTEMOUT: " + key + ": " + value.toString()));
 
 
         final Topology topology = builder.build();
@@ -160,26 +170,84 @@ public class RealTimeStreamProcessor {
                 .map((key, value) -> KeyValue.pair(value.getID(), value))
                 .toTable(Materialized.with(Serdes.String(), movieInfoSerde));
     }
-    private static Map<String, MovieInfo> loadMovieTitles(String path) throws Exception {
-        Map<String, MovieInfo> movieTitlesMap = new HashMap<>();
-        try (BufferedReader reader = new BufferedReader(new FileReader(path))) {
-            reader.readLine(); // Skip the header line
-            String line;
-            while ((line = reader.readLine()) != null) {
-                String[] parts = line.split(",");
-                if (parts.length >= 3) {
-                    String id = parts[0];
-                    String title = parts[2];
-                    String year;
-                    if ("NULL".equals(parts[1])) {
-                        year = "0"; // Assigning a default value (you can change it as needed)
-                    } else {
-                        year = parts[1];
-                    }
-                    movieTitlesMap.put(id, new MovieInfo(id, title, year));
-                }
-            }
+
+    private static KStream<Windowed<String>, Anomaly> getAnomaly(
+            Serde<MovieRatingInfoJoined> movieRatingInfoJoinedSerde,
+            Serde<Anomaly> anomalySerde,
+            int D, // Długość okresu w dniach
+            int L, // Minimalna liczba ocen
+            int O, // Minimalna średnia ocena
+            KStream<String, MovieRatingInfoJoined> joined,
+            String delay) {
+
+        KTable<Windowed<String>, Anomaly> anomalies = null;
+        try {
+            anomalies = joined
+                    .groupByKey(Grouped.with(Serdes.String(), movieRatingInfoJoinedSerde))
+                    .windowedBy(TimeWindows.ofSizeWithNoGrace(Duration.ofDays(D)))
+                    .aggregate(
+                            Anomaly::new,
+                            (key, value, aggregate) -> {
+                                aggregate.setTitle(value.getTitle());
+
+                                aggregate.setRatingAmount(aggregate.getRatingAmount() + 1);
+
+                                aggregate.setRatingSum(aggregate.getRatingSum() + Integer.parseInt(value.getRate()));
+
+                                aggregate.setRatingAVG(aggregate.getRatingSum() / aggregate.getRatingAmount());
+
+                                return aggregate;
+                            },
+                            Materialized.with(Serdes.String(), anomalySerde)
+                    );
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("Error occurred while building ETL data.", e);
         }
-        return movieTitlesMap;
+
+        if (delay.equals("C")) {
+            return anomalies
+                    .filter((key, value) -> value.getRatingAmount() >= L && value.getRatingAVG() >= O)
+                    .suppress(Suppressed.untilWindowCloses(Suppressed.BufferConfig.unbounded()))
+                    .toStream();
+        }
+
+        return anomalies
+                .filter((key, value) -> value.getRatingAmount() >= L && value.getRatingAVG() >= O)
+                .toStream();
+    }
+
+
+    /// Anomalies
+    private static KeyValue<String, AnomalyPeriod> extractWindowTimestamps(Windowed<String> key, Anomaly value) {
+        return KeyValue.pair(key.key(), new AnomalyPeriod(
+                value,
+                key.window().startTime().toString(),
+                key.window().endTime().toString()
+        ));
+    }
+
+    private static KTable<String, AnomalyTable> getAnomalyTables(
+            Serde<AnomalyTable> anomalyTableSerde,
+            Serde<AnomalyPeriod> AnomalyPeriodSerde,
+            KStream<Windowed<String>, Anomaly> anomalies) {
+
+        return anomalies
+                .map(RealTimeStreamProcessor::extractWindowTimestamps)
+                .toTable(Materialized.with(Serdes.String(), AnomalyPeriodSerde))
+                .mapValues((key, value) -> getAnomalyTable(value), Materialized.with(Serdes.String(), anomalyTableSerde));
+
+    }
+
+    private static AnomalyTable getAnomalyTable(AnomalyPeriod value) {
+        Anomaly anomaly = value.getAnomaly();
+
+        return new AnomalyTable(
+                "from: " + value.getStartTs() + " to: " + value.getEndTs(),
+                anomaly.getTitle(),
+                anomaly.getRatingAmount(),
+                anomaly.getRatingAVG()
+        );
+
     }
 }
