@@ -42,6 +42,7 @@ public class RealTimeStreamProcessor {
         String movieRatingInputTopic = "netflix-ratings-input";
         String movieInfoInputTopic = "movie-info-input";
         String ELTOutputTopic = "etl-output";
+        String AnomalyOutputTopic = "anomaly-output";
 
         StreamsBuilder builder = new StreamsBuilder();
 
@@ -71,18 +72,18 @@ public class RealTimeStreamProcessor {
 
         KTable<String, AnomalyTable> anomalyTables = getAnomalyTables(anomalyTableSerde, AnomalyPeriodSerde, anomalies );
 
-        anomalyTables.toStream().foreach((key, value) -> System.out.println("SYSTEMOUT: " + key + ": " + value.toString()));
+        //anomalyTables.toStream().foreach((key, value) -> System.out.println("SYSTEMOUT: " + key + ": " + value.toString()));
 
-//        anomalyRecords
-//                .toStream()
-//                .to(airportsOutputTopic);
+        anomalyTables
+                .toStream()
+                .to(AnomalyOutputTopic);
 
         // ETL
         KTable<Windowed<String>, MovieAggregate> moviesETL = getETLData(movieRatingInfoJoinedSerde, movieAggregateSerde, joined, delay);
 
-//        moviesETL.toStream()
-//                .selectKey((windowedKey, value) -> windowedKey.key())
-//                .to(ELTOutputTopic);
+        moviesETL.toStream()
+                .selectKey((windowedKey, value) -> windowedKey.key())
+                .to(ELTOutputTopic);
 
 //        moviesETL.toStream()
 //                .selectKey((windowedKey, value) -> windowedKey.key())
