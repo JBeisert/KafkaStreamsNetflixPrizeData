@@ -9,16 +9,16 @@ public class MovieInfo implements Serializable {
     private static final Pattern PATTERN = Pattern.compile(LOG_ENTRY_PATTERN);
 
     private String ID;
-    private String Title;
     private String Year;
+    private String Title;
 
     public MovieInfo() {
     }
 
-    public MovieInfo(String ID, String Title, String Year) {
+    public MovieInfo(String ID, String Year, String Title) {
         this.ID = ID;
-        this.Title = Title;
         this.Year = Year;
+        this.Title = Title;
     }
 
     public static MovieInfo parseFromLine(String line) {
@@ -69,6 +69,11 @@ public class MovieInfo implements Serializable {
 
     public void setYear(String year) {
         Year = year;
+    }
+
+    @Override
+    public String toString() {
+        return String.format("%s %s %s", ID, Year, Title);
     }
 }
 

@@ -36,6 +36,7 @@ public class RealTimeStreamProcessor {
         Serde<MovieRating> movieRatingSerde = new GenericSerde<>(MovieRating.class);
         Serde<MovieInfo> movieInfoSerde = new GenericSerde<>(MovieInfo.class);
         Serde<MovieAggregate> movieAggregateSerde = new GenericSerde<>(MovieAggregate.class);
+        Serde<MovieRatingInfoJoined> movieRatingInfoJoinedSerde = new GenericSerde<>(MovieRatingInfoJoined.class);
 
         String movieRatingInputTopic = "netflix-ratings-input";
         String movieInfoInputTopic = "movie-info-input";
@@ -43,15 +44,52 @@ public class RealTimeStreamProcessor {
 
         StreamsBuilder builder = new StreamsBuilder();
 
-        // = AIRPORTS = MovieInfo
-        //KTable<String, MovieInfo> movieInfoTable = getMovieInfoTable(movieInfoSerde, movieInfoInputTopic, builder);
-//        movieInfoTable.toStream().foreach((key, value) -> System.out.println("SYSTEMOUT: " + key + ": " + value.toString()));
+        // MovieInfo
+        KTable<String, MovieInfo> movieInfoTable = getMovieInfoTable(movieInfoSerde, movieInfoInputTopic, builder);
+        //movieInfoTable.toStream().foreach((key, value) -> System.out.println("movieInfoTable: " + key + ": " + value.toString()));
 
-        // = FLIGHTS = MovieRating
+        // MovieRating
         KStream<String, MovieRating> movieRating = getMovieRating(movieRatingInputTopic, builder);
-        KStream<String, MovieRating> movieInfoID = movieRating.selectKey((key, value) -> value.getFilm_id());
+        KStream<String, MovieRating> movieRatingID = movieRating.selectKey((key, value) -> value.getFilm_id());
 
-        // = ETL =
+        //movieRatingID.foreach((key, value) -> System.out.println("movieRatingID: " + key + ": " + value.toString()));
+
+        KStream<String, MovieRatingInfoJoined> joinedLines = movieRatingID
+                .join(movieInfoTable, (MovieRating val1, MovieInfo val2) -> {
+                            try {
+                                return new MovieRatingInfoJoined(val1.dateString, val1.film_id, val1.user_id, val1.rate, val2.getTitle());
+                            } catch (Exception e) {
+                                System.out.println("join error");
+                                System.out.println(e.getMessage());
+                                System.out.println(e.getClass());
+                                return new MovieRatingInfoJoined();
+                            }
+                        }
+                        , Joined.with(Serdes.String(), movieRatingSerde, movieInfoSerde));
+
+        joinedLines.foreach((key, value) -> System.out.println("joinedLines: " + key + ": " + value.toString()));
+
+//        KStream<String, NetflixView> joinedLines = netflixLines
+//                .map((key, value) -> KeyValue.pair(value.getFilm_id(), value))
+//                .join(movieTitles, (NetflixView val1, String val2) -> {
+////                .leftJoin(movieTitles, (NetflixView val1, String val2) -> {
+//                            try {
+//                                if (val2 == null) { // is it length problem?
+//                                    val2 = "";
+//                                }
+//                                val1.title = val2;
+//                                return val1;
+//                            } catch (Exception e) {
+//                                System.out.println("join error");
+//                                System.out.println(e.getMessage());
+//                                System.out.println(e.getClass());
+//                                return new NetflixView();
+//                            }
+//
+//                        }
+//                        , Joined.with(stringSerde, viewSerde, stringSerde)
+
+        // ETL
         KTable<Windowed<String>, MovieAggregate> moviesETL = getETLData(movieRatingSerde, movieAggregateSerde, movieRating, delay);
 
 
@@ -59,9 +97,13 @@ public class RealTimeStreamProcessor {
 //                .selectKey((windowedKey, value) -> windowedKey.key())
 //                .to(ELTOutputTopic);
 
-        moviesETL.toStream()
-                .selectKey((windowedKey, value) -> windowedKey.key())
-                .foreach((key, value) -> System.out.println("SYSTEMOUT: " + key + ": " + value.toString()));
+//        moviesETL.toStream()
+//                .selectKey((windowedKey, value) -> windowedKey.key())
+//                .foreach((key, value) -> System.out.println("SYSTEMOUT: " + key + ": " + value.toString()));
+
+//        moviesETL.toStream()
+//                .selectKey((windowedKey, value) -> windowedKey.key())
+//                .foreach((key, value) -> System.out.println("SYSTEMOUT: " + key + ": " + value.toString()));
 
 
 
@@ -113,6 +155,8 @@ public class RealTimeStreamProcessor {
                                 updatedUniqueUsers.add(value.getUser_id());
                                 aggregate.setUniqueUsers(updatedUniqueUsers);
 
+                                aggregate.setUniqueUsersCount(aggregate.getUniqueUsers().size());
+
                                 return aggregate;
                             },
                             Materialized.with(Serdes.String(), movieAggregateSerde)
@@ -140,29 +184,29 @@ public class RealTimeStreamProcessor {
                 .stream(movieInfoInputTopic, Consumed.with(Serdes.String(), Serdes.String()))
                 .filter((key, line) -> MovieInfo.isLineCorrect(line))
                 .mapValues(MovieInfo::parseFromLine)
-                .selectKey((key, value) -> value.getTitle())
+                .map((key, value) -> KeyValue.pair(value.getID(), value))
                 .toTable(Materialized.with(Serdes.String(), movieInfoSerde));
     }
-    //    private static Map<String, MovieInfo> loadMovieTitles(String path) throws Exception {
-//        Map<String, MovieInfo> movieTitlesMap = new HashMap<>();
-//        try (BufferedReader reader = new BufferedReader(new FileReader(path))) {
-//            reader.readLine(); // Skip the header line
-//            String line;
-//            while ((line = reader.readLine()) != null) {
-//                String[] parts = line.split(",");
-//                if (parts.length >= 3) {
-//                    String id = parts[0];
-//                    String title = parts[2];
-//                    int year;
-//                    if ("NULL".equals(parts[1])) {
-//                        year = 0; // Assigning a default value (you can change it as needed)
-//                    } else {
-//                        year = Integer.parseInt(parts[1]);
-//                    }
-//                    movieTitlesMap.put(id, new MovieInfo(id, title, year));
-//                }
-//            }
-//        }
-//        return movieTitlesMap;
-//    }
+    private static Map<String, MovieInfo> loadMovieTitles(String path) throws Exception {
+        Map<String, MovieInfo> movieTitlesMap = new HashMap<>();
+        try (BufferedReader reader = new BufferedReader(new FileReader(path))) {
+            reader.readLine(); // Skip the header line
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] parts = line.split(",");
+                if (parts.length >= 3) {
+                    String id = parts[0];
+                    String title = parts[2];
+                    String year;
+                    if ("NULL".equals(parts[1])) {
+                        year = "0"; // Assigning a default value (you can change it as needed)
+                    } else {
+                        year = parts[1];
+                    }
+                    movieTitlesMap.put(id, new MovieInfo(id, title, year));
+                }
+            }
+        }
+        return movieTitlesMap;
+    }
 }

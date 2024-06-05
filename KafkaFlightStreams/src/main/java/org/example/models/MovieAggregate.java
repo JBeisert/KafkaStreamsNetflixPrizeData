@@ -7,17 +7,20 @@ public class MovieAggregate {
     private Integer ratingAmount;
     private Integer ratingSum;
     private Set<String> uniqueUsers;
+    private Integer uniqueUsersCount;
 
     public MovieAggregate() {
         this.ratingAmount = 0;
         this.ratingSum = 0;
         this.uniqueUsers = new HashSet<>();
+        this.uniqueUsersCount = 0;
     }
 
-    public MovieAggregate(Integer ratingAmount, Integer ratingSum, Set<String> uniqueUsers) {
+    public MovieAggregate(Integer ratingAmount, Integer ratingSum, Set<String> uniqueUsers, Integer uniqueUsersCount) {
         this.ratingAmount = ratingAmount;
         this.ratingSum = ratingSum;
         this.uniqueUsers = uniqueUsers;
+        this.uniqueUsersCount = uniqueUsersCount;
     }
 
     public Integer getRatingAmount() {
@@ -44,12 +47,20 @@ public class MovieAggregate {
         this.uniqueUsers = uniqueUsers;
     }
 
+    public Integer getUniqueUsersCount() {
+        return uniqueUsersCount;
+    }
+
+    public void setUniqueUsersCount(Integer uniqueUsersCount) {
+        this.uniqueUsersCount = uniqueUsersCount;
+    }
+
     @Override
     public String toString() {
         return "MovieAggregate{" +
                 "ratingAmount=" + ratingAmount +
                 ", ratingSum=" + ratingSum +
-                ", uniqueUsers=" + uniqueUsers.size() +
+                ", uniqueUsersCount=" + uniqueUsersCount +
                 '}';
     }
 

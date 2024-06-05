@@ -13,10 +13,10 @@ import java.util.regex.Pattern;
 public class MovieRating implements Serializable {
     private static final String LOG_ENTRY_PATTERN = "^([^,]+),([^,]+),([^,]+),([^,]+)$";
     private static final Pattern PATTERN = Pattern.compile(LOG_ENTRY_PATTERN);
-    private String dateString;
-    private String film_id;
-    private String user_id;
-    private String rate;
+    public String dateString;
+    public String film_id;
+    public String user_id;
+    public String rate;
 
     public MovieRating() {
     }
