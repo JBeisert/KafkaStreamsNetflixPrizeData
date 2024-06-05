@@ -72,10 +72,11 @@ public class RealTimeStreamProcessor {
 
         KTable<String, AnomalyTable> anomalyTables = getAnomalyTables(anomalyTableSerde, AnomalyPeriodSerde, anomalies );
 
-        //anomalyTables.toStream().foreach((key, value) -> System.out.println("SYSTEMOUT: " + key + ": " + value.toString()));
+//        anomalyTables.toStream().foreach((key, value) -> System.out.println("SYSTEMOUT: " + key + ": " + value.toString()));
 
         anomalyTables
                 .toStream()
+                .filter((key, value) -> value != null && key != null && value.getTitle() != null)
                 .to(AnomalyOutputTopic);
 
         // ETL
@@ -241,14 +242,22 @@ public class RealTimeStreamProcessor {
     }
 
     private static AnomalyTable getAnomalyTable(AnomalyPeriod value) {
-        Anomaly anomaly = value.getAnomaly();
-
-        return new AnomalyTable(
-                "from: " + value.getStartTs() + " to: " + value.getEndTs(),
-                anomaly.getTitle(),
-                anomaly.getRatingAmount(),
-                anomaly.getRatingAVG()
-        );
-
+        try {
+            Anomaly anomaly = value.getAnomaly();
+            return new AnomalyTable(
+                    "from: " + value.getStartTs() + " to: " + value.getEndTs(),
+                    anomaly.getTitle(),
+                    anomaly.getRatingAmount(),
+                    anomaly.getRatingAVG()
+            );
+        } catch (Exception e) {
+            //System.out.println("Error creating anomaly table: " + e.getMessage());
+            return new AnomalyTable(
+                    "from: " + null + " to: " + null,
+                    null,
+                    null,
+                    null
+            );
+        }
     }
 }
