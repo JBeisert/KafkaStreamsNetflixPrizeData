@@ -6,7 +6,6 @@ import org.apache.kafka.streams.kstream.*;
 import org.apache.kafka.common.serialization.Serde;
 import org.example.models.*;
 import org.example.serialization.GenericSerde;
-
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
@@ -82,8 +81,18 @@ public class RealTimeStreamProcessor {
         // ETL
         KTable<Windowed<String>, MovieAggregate> moviesETL = getETLData(movieRatingInfoJoinedSerde, movieAggregateSerde, joined, delay);
 
-        moviesETL.toStream()
+        moviesETL
+                .toStream()
                 .selectKey((windowedKey, value) -> windowedKey.key())
+                .filter((key, value) -> value != null || key != null)
+                .mapValues(value -> {
+                    return "{ \"schema\": { \"type\": \"struct\", \"optional\": false, \"version\": 1, \"fields\": [ "
+                            + "{ \"field\": \"Title\", \"type\": \"string\", \"optional\": true }, "
+                            + "{ \"field\": \"ratingAmount\", \"type\": \"int32\", \"optional\": true }, "
+                            + "{ \"field\": \"ratingSum\", \"type\": \"int32\", \"optional\": true }, "
+                            + "{ \"field\": \"uniqueUsersCount\", \"type\": \"int32\", \"optional\": true } "
+                            + "] }, \"payload\": { \"Title\": \"" + value.getTitle() + "\", \"ratingAmount\": " + value.getRatingAmount() + ", \"ratingSum\": " + value.getRatingSum() + ", \"uniqueUsersCount\": " + value.getUniqueUsersCount() + " } }";
+                })
                 .to(ELTOutputTopic);
 
 //        moviesETL.toStream()
