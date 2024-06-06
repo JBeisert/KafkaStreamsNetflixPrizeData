@@ -56,7 +56,7 @@ public class MovieInfo implements Serializable {
     }
 
     public String getTitle() {
-        return Title;
+        return Title.replace("\"", "'");
     }
 
     public void setTitle(String title) {
