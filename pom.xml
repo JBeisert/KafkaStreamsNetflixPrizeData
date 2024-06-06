@@ -25,7 +25,7 @@
 
 
     <groupId>org.example</groupId>
-    <artifactId>bigdata</artifactId>
+    <artifactId>KafkaStreamsNetflixPrizeData</artifactId>
     <version>2</version>
 
     <dependencies>
