@@ -28,4 +28,4 @@ rm -rf netflix-prize-data.zip
 echo "Done"
 
 echo "============================================"
-echo "Jeśli skrypt nie zadziałał to znaczy że nie podałeś BUCKET_NAME jako argumentu"
+echo "Jeśli skrypt nie zadziałał to znaczy że nie podałeś swojego BUCKET_NAME jako argumentu"

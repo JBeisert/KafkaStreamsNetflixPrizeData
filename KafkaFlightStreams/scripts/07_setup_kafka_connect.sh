@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# Zmienne środowiskowe
 CLUSTER_NAME=$(/usr/share/google/get_metadata_value attributes/dataproc-cluster-name)
 BOOTSTRAP_SERVER="${CLUSTER_NAME}-w-0:9092"
 TOPIC_NAME="etl-output"
@@ -36,7 +37,6 @@ connection.url=jdbc:mysql://localhost:6033/streamdb
 connection.user=streamuser
 connection.password=stream
 
-
 # Konfiguracja zadania, które kopiuje dane z Kafki do MySQL
 tasks.max=1
 name=kafka-to-mysql-task
@@ -46,6 +46,7 @@ table.name.format=data_sink
 delete.enabled=true
 pk.mode=record_key
 pk.fields=id
+insert.mode=upsert
 EOF
 
 # 7. Skopiuj do odpowiedniego pliku parametry log4j
