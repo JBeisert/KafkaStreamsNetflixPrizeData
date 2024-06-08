@@ -136,7 +136,7 @@ public class RealTimeStreamProcessor {
         try {
             movieAggregates = joined
                     .groupByKey(Grouped.with(Serdes.String(), movieRatingInfoJoinedSerde))
-                    .windowedBy(TimeWindows.ofSizeWithNoGrace(Duration.ofDays(1)))
+                    .windowedBy(TimeWindows.ofSizeWithNoGrace(Duration.ofDays(30)))
                     .aggregate(
                             MovieAggregate::new,
                             (key, value, aggregate) -> {
